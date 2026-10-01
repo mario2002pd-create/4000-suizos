@@ -53,6 +53,15 @@ svg text{font-family:var(--f-data);fill:var(--fg)}
 .row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .note{font-size:12px;color:var(--muted)}
 #tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font:12px var(--f-data);padding:4px 8px;border-radius:4px;display:none;white-space:nowrap;z-index:5}
+.v3{position:relative;height:clamp(420px,72vh,700px);border-radius:8px;overflow:hidden;background:linear-gradient(var(--water),var(--panel) 85%);touch-action:none;display:none}
+.v3 canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}.v3 canvas:active{cursor:grabbing}
+#labs{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;font:500 11px var(--f-data);color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 1px 2px #000;white-space:nowrap;display:none;will-change:transform}
+.lb.sel{background:var(--accent);padding:2px 6px;border-radius:4px;text-shadow:none;font-size:12px}
+.ctl{position:absolute;left:8px;bottom:8px;right:8px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font:12px var(--f-data);color:var(--fg)}
+.ctl>*{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);border-radius:6px;padding:5px 9px}
+.ctl label{display:flex;gap:8px;align-items:center}.ctl input[type=range]{width:100px;padding:0}
+.hint{margin-left:auto;color:var(--muted)}
 </style>
 
 <div class="wrap">
@@ -62,7 +71,8 @@ svg text{font-family:var(--f-data);fill:var(--fg)}
   </header>
   <div class="bar">
     <div class="seg" id="views" role="tablist">
-      <button class="tab" role="tab" data-v="map" aria-selected="true">Mapa</button>
+      <button class="tab" role="tab" data-v="3d" aria-selected="true">Relieve 3D</button>
+      <button class="tab" role="tab" data-v="map" aria-selected="false">Mapa</button>
       <button class="tab" role="tab" data-v="sky" aria-selected="false">Panorama O→E</button>
       <button class="tab" role="tab" data-v="rank" aria-selected="false">Ranking</button>
     </div>
@@ -76,14 +86,18 @@ svg text{font-family:var(--f-data);fill:var(--fg)}
   </div>
   <div class="stats" id="stats"></div>
   <div class="main">
-    <div class="stage" id="stage"><div id="tip"></div><div id="view"></div>
+    <div class="stage" id="stage"><div id="tip"></div>
+      <div class="v3" id="v3"><canvas id="cv"></canvas><div id="labs"></div>
+        <div class="ctl"><button class="chip" id="b-auto" aria-pressed="false">⟳ Girar</button><label>Exageración <input type="range" id="r-ex" min="1" max="4" step=".5" value="2.5"><b id="v-ex">×2.5</b></label><button class="chip" id="b-reset">Reiniciar vista</button><span class="hint">Arrastra: rotar · rueda: zoom · Mayús/clic dcho.: mover</span></div></div>
+      <div id="view"></div>
       <div class="legend"><span><i class="dot" style="color:var(--p4k)"></i>Cuatromil (≥ 4000 m)</span><span><i class="dot" style="color:var(--pgr)"></i>Graubünden</span><span><i class="dot" style="color:var(--pother)"></i>Otras cimas</span></div>
     </div>
     <aside class="card" id="card" aria-live="polite"></aside>
   </div>
-  <p class="note">Alturas y posiciones redondeadas; contornos del mapa esquemáticos, no cartografía oficial. Hay 48 cuatromiles oficiales en Suiza (lista UIAA ampliada); aquí figuran los principales, incluidos los de frontera.</p>
+  <p class="note">Alturas y posiciones redondeadas; contornos del mapa esquemáticos, no cartografía oficial. El relieve 3D es procedural e ilustrativo (generado a partir de las posiciones y alturas de las cimas, no un modelo digital del terreno real). Hay 48 cuatromiles oficiales en Suiza (lista UIAA ampliada); aquí figuran los principales, incluidos los de frontera.</p>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // [nombre, altura m, lat, lon, cantón, macizo, nota]
 const D=[
@@ -169,7 +183,7 @@ const S=282, X0=5.9, Y0=47.85, KX=Math.cos(46.8*Math.PI/180);
 const px=p=>(p.lon-X0)*KX*S+10, py=p=>(Y0-p.lat)*S+10;
 const poly=a=>a.map(([la,lo])=>((lo-X0)*KX*S+10).toFixed(1)+","+((Y0-la)*S+10).toFixed(1)).join(" ");
 
-const st={v:"map",f:"all",q:"",sel:D.find(p=>p.n==="Matterhorn")};
+const st={v:"3d",f:"all",q:"",sel:D.find(p=>p.n==="Matterhorn")};
 const $=s=>document.querySelector(s), view=$("#view"), tip=$("#tip");
 const col=p=>p.g?"var(--pgr)":p.k?"var(--p4k)":"var(--pother)";
 const fmt=n=>n.toLocaleString("de-CH").replace(/’/g,"’");
@@ -224,14 +238,140 @@ function card(){
   ${p.k?`<p>${p.h-4000} m por encima de los 4000.</p>`:`<p>${4000-p.h} m por debajo de los 4000.</p>`}`;
 }
 
+// ---------- Vista 3D (three.js): relieve procedural a partir de las cimas ----------
+const T={ok:false,fail:false,dirty:true,th:.15,ph:1,dist:340,tg:null,auto:false,exag:2.5,anim:null,mk:new Map(),lb:new Map(),vis:new Set(),hover:null};
+function init3d(){
+  if(T.ok||T.fail)return;
+  const host=$("#v3");
+  if(typeof THREE==="undefined"){T.fail=true;host.innerHTML='<p style="padding:24px;color:var(--muted)">No se pudo cargar three.js (¿sin conexión?). Usa las otras vistas.</p>';return}
+  const KM=111.2,LA0=45.72,LA1=47.88,LO0=5.85,LO1=10.65,wkm=(LO1-LO0)*KX*KM,dkm=(LA1-LA0)*KM;
+  const X=lon=>(lon-LO0)*KX*KM-wkm/2, Z=lat=>(LA1-lat)*KM-dkm/2;
+  const NX=300,NZ=200,W1=NX+1;
+  const sm=t=>t<=0?0:t>=1?1:t*t*(3-2*t), cl=(x,a,b)=>Math.min(b,Math.max(a,x)), mix=(a,b,t)=>a+(b-a)*t;
+  const hash=(i,j)=>{let h=Math.imul(i,374761393)+Math.imul(j,668265263);h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967295};
+  const vn=(x,y)=>{const i=Math.floor(x),j=Math.floor(y),fx=sm(x-i),fy=sm(y-j),a=hash(i,j),b=hash(i+1,j),c=hash(i,j+1),d=hash(i+1,j+1);return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy};
+  const fbm=(x,y,o=5)=>{let s=0,a=.5,f=1;for(let k=0;k<o;k++){s+=a*vn(x*f,y*f);f*=2;a*=.5}return s/.97};
+  const segD=(px,pz,ax,az,bx,bz)=>{const dx=bx-ax,dz=bz-az;const t=cl(((px-ax)*dx+(pz-az)*dz)/(dx*dx+dz*dz),0,1);return Math.hypot(ax+t*dx-px,az+t*dz-pz)};
+  const line=a=>a.map(([la,lo])=>[X(lo),Z(la)]);
+  const dPoly=(x,z,L)=>{let d=1e9;for(let i=0;i<L.length-1;i++)d=Math.min(d,segD(x,z,L[i][0],L[i][1],L[i+1][0],L[i+1][1]));return d};
+  const AXIS=line([[45.90,6.95],[46.00,7.45],[46.08,7.8],[46.3,8.0],[46.52,8.15],[46.60,8.4],[46.65,8.8],[46.55,9.2],[46.42,9.7],[46.5,10.1]]);
+  const PRE=line([[46.35,7.1],[46.7,7.6],[46.85,8.3],[47.1,9.0],[47.25,9.45]]);
+  const JURA=line([[46.35,6.15],[46.75,6.55],[47.2,7.2],[47.4,7.8],[47.5,8.3]]);
+  const LAKES=[[46.45,6.55,.33,.075],[47.60,9.40,.14,.06],[46.90,6.85,.09,.15],[46.10,8.72,.05,.2],[47.0,8.40,.10,.045],[47.25,8.70,.03,.1],[46.95,7.0,.04,.05],[46.77,8.55,.05,.04],[47.28,9.15,.03,.04]];
+  const PK=D.map(p=>({x:X(p.lon),z:Z(p.lat),h:p.h,s:1.3+p.h/2600}));
+  function inCH(lat,lon){let c=false;for(let i=0,j=CH.length-1;i<CH.length;j=i++){const[a,b]=CH[i],[e,f]=CH[j];if((b>lon)!==(f>lon)&&lat<(e-a)*(lon-b)/(f-b)+a)c=!c}return c}
+  const H=new Float32Array(W1*(NZ+1)),LW=new Float32Array(H.length),MK=new Float32Array(H.length);
+  for(let iz=0;iz<=NZ;iz++)for(let ix=0;ix<=NX;ix++){
+    const i=iz*W1+ix,lon=LO0+ix/NX*(LO1-LO0),lat=LA1-iz/NZ*(LA1-LA0),x=X(lon),z=Z(lat);
+    let best=0;for(const q of PK){const dx=x-q.x,dz=z-q.z,d2=dx*dx+dz*dz;if(d2>1500)continue;const v=q.h*Math.exp(-Math.sqrt(d2)/q.s);if(v>best)best=v}
+    const alp=1900*Math.exp(-((dPoly(x,z,AXIS)/17)**2))*(.6+.8*fbm(x*.07,z*.07,3));
+    const pre=900*Math.exp(-((dPoly(x,z,PRE)/13)**2)),jur=650*Math.exp(-((dPoly(x,z,JURA)/9)**2));
+    let h=300+250*fbm(x*.03+9,z*.03,3)+alp+pre+jur;h=Math.max(h,best);
+    {const n=fbm(x*.16,z*.16,5),rg=1-Math.abs(2*fbm(x*.08+5,z*.08,4)-1);h+=((n-.5)*2*300+(rg-.5)*2*380)*cl((h-800)/1800,0,1)}
+    const u=Math.min(ix/NX,1-ix/NX,iz/NZ,1-iz/NZ);h*=sm(u/.06);
+    let w=0;for(const[la,lo,rl,rt]of LAKES)w=Math.max(w,1-sm((Math.hypot((lon-lo)/rl,(lat-la)/rt)-.85)/.2));
+    LW[i]=w;H[i]=mix(h,370,w);MK[i]=inCH(lat,lon)?1:0;
+  }
+  for(let k=0;k<3;k++){const c=MK.slice();for(let iz=2;iz<NZ-1;iz++)for(let ix=2;ix<NX-1;ix++){let s=0;for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++)s+=c[(iz+a)*W1+ix+b];MK[iz*W1+ix]=s/25}}
+  const hAt=(lat,lon)=>{const fx=cl((lon-LO0)/(LO1-LO0)*NX,0,NX-1e-3),fz=cl((LA1-lat)/(LA1-LA0)*NZ,0,NZ-1e-3),ix=Math.floor(fx),iz=Math.floor(fz),tx=fx-ix,tz=fz-iz,i=iz*W1+ix;return mix(mix(H[i],H[i+1],tx),mix(H[i+W1],H[i+W1+1],tx),tz)};
+
+  const geo=new THREE.PlaneGeometry(wkm,dkm,NX,NZ);geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position,colA=new Float32Array(pos.count*3),sx=wkm*1000/NX,sz=dkm*1000/NZ;
+  const STOPS=[[0,.25,.40,.20],[900,.36,.48,.24],[1700,.48,.52,.30],[2300,.56,.53,.42],[2900,.52,.50,.49]];
+  for(let iz=0;iz<=NZ;iz++)for(let ix=0;ix<=NX;ix++){
+    const i=iz*W1+ix;pos.setY(i,H[i]/1000);
+    const gx=(H[iz*W1+Math.min(ix+1,NX)]-H[iz*W1+Math.max(ix-1,0)])/(2*sx),gz=(H[Math.min(iz+1,NZ)*W1+ix]-H[Math.max(iz-1,0)*W1+ix])/(2*sz),g=Math.hypot(gx,gz),h=H[i];
+    let c=STOPS[STOPS.length-1].slice(1);for(let k=0;k<STOPS.length-1;k++)if(h<=STOPS[k+1][0]){const t=cl((h-STOPS[k][0])/(STOPS[k+1][0]-STOPS[k][0]),0,1);c=[1,2,3].map(j=>mix(STOPS[k][j],STOPS[k+1][j],t));break}
+    const rock=sm((g-.55)/.45),sl=3000+(fbm(ix*.05,iz*.05,3)-.5)*600,sn=sm((h-sl)/350)*(1-.75*sm((g-.5)/.5));
+    c=c.map((v,j)=>mix(mix(v,[.45,.43,.42][j],rock*(1-sn)),[.95,.97,1][j],sn));
+    c=c.map((v,j)=>mix(v,[.55,.58,.60][j],(1-MK[i])*.5));
+    c=c.map((v,j)=>mix(v,[.30,.52,.72][j],LW[i]));
+    colA.set(c,i*3);
+  }
+  geo.setAttribute("color",new THREE.BufferAttribute(colA,3));geo.computeVertexNormals();
+
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(40,1,1,3000);
+  const ter=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true}));sc.add(ter);
+  sc.add(new THREE.HemisphereLight(0xffffff,0x778899,.85));const sun=new THREE.DirectionalLight(0xfff1dc,.95);sun.position.set(-1,1.1,.7);sc.add(sun);
+  const lines=new THREE.Group();sc.add(lines);
+  function border(a,color){const pts=[];for(let i=0;i<a.length;i++){const[a1,b1]=a[i],[a2,b2]=a[(i+1)%a.length];for(let t=0;t<6;t++){const la=mix(a1,a2,t/6),lo=mix(b1,b2,t/6);pts.push(new THREE.Vector3(X(lo),hAt(la,lo)/1000+.12,Z(la)))}}
+    lines.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color})))}
+  border(CH,0xffffff);border(GR,0xff5a45);
+  const rend=new THREE.WebGLRenderer({canvas:$("#cv"),antialias:true,alpha:true});rend.setPixelRatio(Math.min(devicePixelRatio||1,2));
+
+  const colors={g:0xe0432c,k:0x2f7fd0,o:0x8a9aa5},labs=$("#labs"),CONE=5;
+  for(const p of D){
+    const m=new THREE.Mesh(new THREE.ConeGeometry(1.2,CONE,10),new THREE.MeshBasicMaterial({color:p.g?colors.g:p.k?colors.k:colors.o}));
+    m.geometry.translate(0,CONE/2,0);m.geometry.rotateX(Math.PI);  // punta hacia abajo, sobre la cima
+    sc.add(m);T.mk.set(p.n,m);
+    const d=document.createElement("div");d.className="lb";d.textContent=p.n;labs.appendChild(d);T.lb.set(p.n,d);
+  }
+  const tipY=p=>hAt(p.lat,p.lon)/1000*T.exag+.15, P=p=>new THREE.Vector3(X(p.lon),tipY(p),Z(p.lat));
+  const home=()=>({tg:new THREE.Vector3(X(8.5),1.2*T.exag,Z(46.45)),dist:340,th:.15,ph:1});
+  Object.assign(T,home());
+  function placeMarks(){for(const p of D)T.mk.get(p.n).position.copy(P(p).add(new THREE.Vector3(0,CONE,0)));ter.scale.y=lines.scale.y=T.exag;T.dirty=true}
+  function resize(){const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;rend.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();T.dirty=true}
+  new ResizeObserver(resize).observe(host);
+  T.fly=p=>{const q=P(p);T.anim={t0:performance.now(),dur:800,f:{tg:T.tg.clone(),dist:T.dist},t:{tg:q,dist:Math.min(T.dist,120)}};T.dirty=true};
+  const reset=()=>{const h=home();T.anim={t0:performance.now(),dur:900,f:{tg:T.tg.clone(),dist:T.dist,th:T.th,ph:T.ph},t:h}};
+  $("#b-reset").onclick=reset;
+  $("#b-auto").onclick=e=>{T.auto=!T.auto;e.currentTarget.setAttribute("aria-pressed",T.auto);T.dirty=true};
+  $("#r-ex").oninput=e=>{const old=T.exag;T.exag=+e.target.value;$("#v-ex").textContent="×"+T.exag;T.tg.y*=T.exag/old;placeMarks()};
+
+  // cámara orbital propia: arrastrar = girar, rueda/pellizco = zoom, Mayús o botón dcho. = desplazar
+  const cv=$("#cv"),ptr=new Map();let moved=0,pinch=0;
+  cv.addEventListener("contextmenu",e=>e.preventDefault());
+  cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);if(ptr.size===1)moved=0;T.anim=null;pinch=0});
+  cv.addEventListener("pointermove",e=>{
+    const o=ptr.get(e.pointerId);
+    if(!o){hover(e);return}
+    const dx=e.clientX-o[0],dy=e.clientY-o[1];ptr.set(e.pointerId,[e.clientX,e.clientY]);moved+=Math.abs(dx)+Math.abs(dy);
+    if(ptr.size===2){const[a,b]=[...ptr.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch)T.dist=cl(T.dist*pinch/d,18,700);pinch=d}
+    else if(e.shiftKey||e.buttons===2){const k=T.dist*.0016;T.tg.x-=Math.cos(T.th)*dx*k;T.tg.z+=Math.sin(T.th)*dx*k;T.tg.x-=Math.sin(T.th)*dy*k;T.tg.z-=Math.cos(T.th)*dy*k}
+    else{T.th-=dx*.006;T.ph=cl(T.ph-dy*.005,.15,1.45)}
+    T.dirty=true;tip.style.display="none"});
+  const up=e=>{if(ptr.has(e.pointerId)&&ptr.size===1&&moved<6){const p=nearest(e);if(p)pick(p.n)}ptr.delete(e.pointerId);pinch=0};
+  cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",e=>{ptr.delete(e.pointerId);pinch=0});
+  cv.addEventListener("wheel",e=>{e.preventDefault();T.dist=cl(T.dist*Math.exp(e.deltaY*.0012),18,700);T.anim=null;T.dirty=true},{passive:false});
+  function screen(p){const v=T.mk.get(p.n).position.clone();v.y+=CONE*.45;v.project(cam);return v.z<1?[(v.x*.5+.5)*host.clientWidth,(-v.y*.5+.5)*host.clientHeight]:null}
+  function nearest(e){const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;let b=null,bd=20;for(const p of D){if(!T.vis.has(p))continue;const s=screen(p);if(!s)continue;const d=Math.hypot(s[0]-mx,s[1]-my);if(d<bd){bd=d;b=p}}return b}
+  function hover(e){const p=nearest(e);cv.style.cursor=p?"pointer":"";if(p!==T.hover){T.hover=p;T.dirty=true}
+    if(!p){tip.style.display="none";return}const r=$("#stage").getBoundingClientRect();tip.textContent=`${p.n} · ${fmt(p.h)} m`;tip.style.display="block";tip.style.left=Math.min(e.clientX-r.left+12,r.width-170)+"px";tip.style.top=(e.clientY-r.top+14)+"px"}
+  cv.addEventListener("pointerleave",()=>{tip.style.display="none";T.hover=null});
+
+  function frame(now){
+    requestAnimationFrame(frame);if(st.v!=="3d")return;
+    if(T.anim){const a=T.anim,t=sm((now-a.t0)/a.dur);T.tg.lerpVectors(a.f.tg,a.t.tg,t);T.dist=mix(a.f.dist,a.t.dist,t);if(a.t.th!==undefined){T.th=mix(a.f.th,a.t.th,t);T.ph=mix(a.f.ph,a.t.ph,t)}if(t>=1)T.anim=null;T.dirty=true}
+    if(T.auto){T.th+=.0025;T.dirty=true}
+    if(!T.dirty)return;T.dirty=false;
+    const sp=Math.sin(T.ph);cam.position.set(T.tg.x+T.dist*sp*Math.sin(T.th),T.tg.y+T.dist*Math.cos(T.ph),T.tg.z+T.dist*sp*Math.cos(T.th));cam.lookAt(T.tg);cam.updateMatrixWorld();
+    const ms=cl(T.dist/200,.35,1.2);
+    for(const p of D){const m=T.mk.get(p.n),on=T.vis.has(p),big=p===st.sel||p===T.hover;m.visible=on;m.scale.setScalar(ms*(big?1.7:1))}
+    rend.render(sc,cam);
+    // etiquetas sin solaparse: primero la seleccionada, luego por altura
+    const placed=[],order=[...T.vis].sort((a,b)=>(b===st.sel)-(a===st.sel)||b.h-a.h);
+    for(const d of T.lb.values())d.style.display="none";
+    for(const p of order){
+      const want=p===st.sel||p===T.hover||p.k||T.vis.size<=25||(T.dist<110&&p.h>=3300)||T.dist<45;if(!want)continue;
+      const s=screen(p);if(!s)continue;const w=p.n.length*6.6+12,box=[s[0]-w/2,s[1]-22,s[0]+w/2,s[1]-6];
+      if(p!==st.sel&&p!==T.hover&&placed.some(q=>box[0]<q[2]&&box[2]>q[0]&&box[1]<q[3]&&box[3]>q[1]))continue;
+      placed.push(box);const d=T.lb.get(p.n);d.style.display="block";d.className="lb"+(p===st.sel?" sel":"");d.style.transform=`translate(${s[0]}px,${s[1]-8}px) translate(-50%,-100%)`;d.style.zIndex=p===st.sel?2:1;
+    }
+  }
+  T.ter=ter;T.ok=true;placeMarks();resize();requestAnimationFrame(frame);
+}
+function update3d(l){T.vis=new Set(l);T.dirty=true;if(T.ok&&st.sel&&!T.did){T.did=1;T.fly(st.sel)}}
+
 function render(){
   const l=vis();
   $("#stats").innerHTML=`<span>Mostrando <b>${l.length}</b> cimas</span><span>Cuatromiles <b>${l.filter(p=>p.k).length}</b></span><span>Graubünden <b>${l.filter(p=>p.g).length}</b></span>`;
-  if(!l.length){view.innerHTML='<p style="padding:24px;color:var(--muted)">Ninguna cima coincide. Cambia el filtro o la búsqueda.</p>'}
+  const is3=st.v==="3d";$("#v3").style.display=is3?"block":"none";view.style.display=is3?"none":"";
+  if(is3){init3d();T.ok&&update3d(l)}
+  else if(!l.length){view.innerHTML='<p style="padding:24px;color:var(--muted)">Ninguna cima coincide. Cambia el filtro o la búsqueda.</p>'}
   else (st.v==="map"?drawMap:st.v==="sky"?drawSky:drawRank)(l);
   card();
 }
-function pick(n){st.sel=D.find(p=>p.n===n);render()}
+function pick(n){st.sel=D.find(p=>p.n===n);render();if(st.v==='3d'&&T.ok)T.fly(st.sel)}
 view.addEventListener("click",e=>{const g=e.target.closest("[data-n]");if(g)pick(g.dataset.n)});
 view.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){const g=e.target.closest("[data-n]");if(g){e.preventDefault();pick(g.dataset.n);const sel=view.querySelector(`[data-n="${CSS.escape(g.dataset.n)}"]`);sel&&sel.focus()}}});
 view.addEventListener("mousemove",e=>{const g=e.target.closest(".peak");if(!g){tip.style.display="none";return}
