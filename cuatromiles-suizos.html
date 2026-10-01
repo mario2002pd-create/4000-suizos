@@ -1,0 +1,245 @@
+<title>Cuatromiles Suizos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: cabecera + filtros, vista principal (mapa / panorama / ranking) y ficha lateral que pasa debajo en móvil. */
+:root{
+  --bg:#eef1f3; --panel:#f8fafb; --fg:#14232e; --muted:#5c6e7a; --line:#d3dce2;
+  --land:#e2e8ec; --gr:#f1d9d4; --water:#cfdde6;
+  --p4k:#1f4f7a; --pgr:#c8321f; --pother:#7d8f9b; --accent:#c8321f; --sel:#14232e;
+  --f-display:"Bricolage Grotesque",system-ui,sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-data:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1a22; --panel:#16252f; --fg:#e6edf1; --muted:#8fa3af; --line:#27394511; --line:#2a3d4a;
+  --land:#1d2f3b; --gr:#3a2a2a; --water:#12212b; --p4k:#7db8ea; --pgr:#ff7a66; --pother:#6f8493; --accent:#ff7a66; --sel:#fff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a22; --panel:#16252f; --fg:#e6edf1; --muted:#8fa3af; --line:#2a3d4a;
+  --land:#1d2f3b; --gr:#3a2a2a; --water:#12212b; --p4k:#7db8ea; --pgr:#ff7a66; --pother:#6f8493; --accent:#ff7a66; --sel:#fff; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;padding-inline:16px;padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+h1{font:700 clamp(28px,5vw,44px)/1.05 var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+button,input{font:inherit;color:var(--fg)}
+.chip,.tab{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:999px;cursor:pointer;font-size:14px}
+.tab{border-radius:6px}
+.chip[aria-pressed=true],.tab[aria-selected=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chip:focus-visible,.tab:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=search]{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:6px;min-width:0;width:200px;max-width:100%}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media(max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;position:relative;min-width:0}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--f-data);fill:var(--fg)}
+.lbl{font-size:10.5px}.mut{fill:var(--muted)!important}
+.peak{cursor:pointer}.peak:hover polygon{stroke:var(--sel);stroke-width:1.5}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:10px;position:sticky;top:12px}
+.card h2{font:700 24px/1.1 var(--f-display);margin:0}
+.big{font:500 40px/1 var(--f-data);font-variant-numeric:tabular-nums}.big small{font-size:16px;color:var(--muted)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font:500 12px var(--f-data);border:1px solid var(--line);padding:3px 8px;border-radius:4px;color:var(--muted)}
+.tag.k{color:var(--p4k);border-color:var(--p4k)}.tag.g{color:var(--pgr);border-color:var(--pgr)}
+.card p{margin:0;color:var(--muted);line-height:1.5}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:4px 6px 2px}
+.dot{display:inline-block;width:0;height:0;border-inline:6px solid transparent;border-bottom:10px solid;margin-right:5px}
+.stats{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--f-data);font-size:13px;color:var(--muted)}
+.stats b{color:var(--fg);font-weight:500}
+.rank{display:grid;gap:3px;max-height:760px;overflow:auto;padding:4px}
+.row{display:grid;grid-template-columns:minmax(90px,170px) 1fr 52px;gap:8px;align-items:center;font-size:13px;cursor:pointer;padding:2px 4px;border-radius:4px}
+.row:hover,.row.on{background:var(--bg)}
+.track{height:12px;position:relative}.fill{height:100%;border-radius:2px}
+.row span:last-child{font-family:var(--f-data);text-align:right;font-variant-numeric:tabular-nums}
+.row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{font-size:12px;color:var(--muted)}
+#tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font:12px var(--f-data);padding:4px 8px;border-radius:4px;display:none;white-space:nowrap;z-index:5}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Cuatromiles Suizos</h1>
+    <p class="sub">Los picos de más de 4000 m de Suiza, más las montañas clave del país y de los Grisones (Graubünden). Explora en mapa, panorama o ranking.</p>
+  </header>
+  <div class="bar">
+    <div class="seg" id="views" role="tablist">
+      <button class="tab" role="tab" data-v="map" aria-selected="true">Mapa</button>
+      <button class="tab" role="tab" data-v="sky" aria-selected="false">Panorama O→E</button>
+      <button class="tab" role="tab" data-v="rank" aria-selected="false">Ranking</button>
+    </div>
+    <div class="seg" id="filters">
+      <button class="chip" data-f="all" aria-pressed="true">Todos</button>
+      <button class="chip" data-f="4k" aria-pressed="false">Cuatromiles</button>
+      <button class="chip" data-f="gr" aria-pressed="false">Graubünden</button>
+      <button class="chip" data-f="other" aria-pressed="false">Otras cimas</button>
+    </div>
+    <input type="search" id="q" placeholder="Buscar cima…" aria-label="Buscar cima">
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="main">
+    <div class="stage" id="stage"><div id="tip"></div><div id="view"></div>
+      <div class="legend"><span><i class="dot" style="color:var(--p4k)"></i>Cuatromil (≥ 4000 m)</span><span><i class="dot" style="color:var(--pgr)"></i>Graubünden</span><span><i class="dot" style="color:var(--pother)"></i>Otras cimas</span></div>
+    </div>
+    <aside class="card" id="card" aria-live="polite"></aside>
+  </div>
+  <p class="note">Alturas y posiciones redondeadas; contornos del mapa esquemáticos, no cartografía oficial. Hay 48 cuatromiles oficiales en Suiza (lista UIAA ampliada); aquí figuran los principales, incluidos los de frontera.</p>
+</div>
+
+<script>
+// [nombre, altura m, lat, lon, cantón, macizo, nota]
+const D=[
+["Dufourspitze",4634,45.937,7.867,"VS","Monte Rosa","Punto más alto de Suiza y segundo de los Alpes."],
+["Nordend",4609,45.942,7.870,"VS","Monte Rosa",""],
+["Zumsteinspitze",4563,45.928,7.876,"VS","Monte Rosa","En la frontera con Italia."],
+["Signalkuppe",4554,45.917,7.878,"VS","Monte Rosa","Sobre ella está la cabaña Margherita (4554 m)."],
+["Dom",4545,46.094,7.859,"VS","Mischabel","El más alto íntegramente en territorio suizo."],
+["Liskamm",4527,45.922,7.835,"VS","Monte Rosa","Larga cresta de nieve y cornisas."],
+["Weisshorn",4506,46.102,7.716,"VS","Valle de Zinal","Pirámide casi perfecta sobre Zermatt y Zinal."],
+["Täschhorn",4491,46.087,7.843,"VS","Mischabel",""],
+["Matterhorn",4478,45.977,7.659,"VS","Zermatt","La montaña más icónica de los Alpes, frontera con Italia."],
+["Dent Blanche",4357,46.034,7.612,"VS","Valle de Hérens",""],
+["Nadelhorn",4327,46.107,7.864,"VS","Mischabel","Uno de los cuatromiles más accesibles."],
+["Stecknadelhorn",4241,46.100,7.865,"VS","Mischabel",""],
+["Grand Combin",4314,45.940,7.299,"VS","Valle de Bagnes","El cuatromil más occidental de Suiza."],
+["Lenzspitze",4294,46.104,7.863,"VS","Mischabel",""],
+["Finsteraarhorn",4274,46.537,8.126,"BE/VS","Alpes Berneses","Cima más alta de los Alpes Berneses."],
+["Castor",4228,45.923,7.755,"VS","Monte Rosa",""],
+["Zinalrothorn",4221,46.065,7.690,"VS","Valle de Zinal",""],
+["Alphubel",4206,46.064,7.864,"VS","Mischabel",""],
+["Rimpfischhorn",4199,46.023,7.884,"VS","Saas",""],
+["Aletschhorn",4193,46.465,8.002,"VS","Alpes Berneses","Domina el glaciar Aletsch, Patrimonio UNESCO."],
+["Strahlhorn",4190,46.010,7.901,"VS","Saas",""],
+["Dent d'Hérens",4171,45.976,7.613,"VS","Zermatt",""],
+["Breithorn",4164,45.941,7.745,"VS","Zermatt","Cuatromil muy popular desde el Klein Matterhorn."],
+["Jungfrau",4158,46.537,7.963,"BE/VS","Alpes Berneses","Vértice de la trilogía Eiger–Mönch–Jungfrau."],
+["Mönch",4107,46.558,7.997,"BE/VS","Alpes Berneses",""],
+["Pollux",4092,45.933,7.738,"VS","Zermatt",""],
+["Schreckhorn",4078,46.588,8.117,"BE","Alpes Berneses","El cuatromil más alto íntegramente en Berna."],
+["Ober Gabelhorn",4063,46.069,7.699,"VS","Valle de Zinal",""],
+["Gross Fiescherhorn",4049,46.550,8.100,"BE/VS","Alpes Berneses",""],
+["Gross Grünhorn",4043,46.503,8.058,"VS","Alpes Berneses",""],
+["Weissmies",4017,46.128,8.012,"VS","Saas","Cuatromil de acceso relativamente sencillo."],
+["Lagginhorn",4010,46.157,8.004,"VS","Saas",""],
+["Piz Bernina",4048,46.383,9.908,"GR","Alpes de Bernina","El único cuatromil de los Alpes orientales y el más alto de los Grisones."],
+["Eiger",3967,46.578,8.005,"BE","Alpes Berneses","Su cara norte es una de las paredes más famosas del mundo."],
+["Bietschhorn",3934,46.393,7.857,"VS","Lötschental","Cima emblemática del Lötschental."],
+["Piz Zupò",3995,46.374,9.956,"GR","Alpes de Bernina","A solo 5 m de los 4000."],
+["Piz Roseg",3937,46.375,9.938,"GR","Alpes de Bernina",""],
+["Piz Scerscen",3971,46.379,9.942,"GR","Alpes de Bernina",""],
+["Piz Palü",3900,46.364,9.950,"GR","Alpes de Bernina","Tres cumbres sobre el glaciar Morteratsch."],
+["Piz Morteratsch",3751,46.400,9.900,"GR","Alpes de Bernina",""],
+["Piz Corvatsch",3451,46.417,9.822,"GR","Alta Engadina","Teleférico hasta casi la cima."],
+["Piz Languard",3262,46.504,9.956,"GR","Pontresina","Mirador clásico sobre la Bernina."],
+["Piz Kesch",3418,46.626,9.886,"GR","Alpes de Albula","Cima más alta de los Alpes de Albula."],
+["Piz Linard",3410,46.782,10.060,"GR","Silvretta","Cima más alta de la Silvretta suiza."],
+["Piz Buin",3312,46.844,10.118,"GR","Silvretta","Frontera con Austria."],
+["Piz Julier",3380,46.494,9.721,"GR","Alpes de Albula","También llamado Piz Güglia."],
+["Piz d'Err",3378,46.509,9.746,"GR","Alpes de Albula",""],
+["Piz Ela",3339,46.610,9.776,"GR","Alpes de Albula",""],
+["Piz Platta",3392,46.477,9.599,"GR","Alpes de Oberhalbstein","Cima más alta del grupo de Plattas."],
+["Piz Badile",3308,46.297,9.568,"GR","Bregaglia","Granito clásico, en la frontera con Italia."],
+["Rheinwaldhorn",3402,46.498,9.045,"GR/TI","Alpes de Adula","Nace cerca el Rin Posterior."],
+["Piz Medel",3210,46.628,8.894,"GR","Lepontinos",""],
+["Tödi",3614,46.812,8.913,"GL/GR","Alpes de Glaris","Cima más alta de los Alpes de Glaris."],
+["Ringelspitz",3247,46.894,9.316,"GR/SG","Glaris–Tamina","Cima más alta del cantón de San Galo."],
+["Piz Beverin",2998,46.694,9.320,"GR","Schams","Mirador independiente, Viamala."],
+["Tinzenhorn",3172,46.617,9.600,"GR","Alpes de Albula",""],
+["Aroser Rothorn",2980,46.700,9.600,"GR","Arosa","Montaña de Arosa."],
+["Calanda",2806,46.900,9.500,"GR/SG","Chur","Montaña de Coira."],
+["Dammastock",3630,46.646,8.459,"UR/VS","Alpes Urneses","Cima más alta de los Alpes de Uri."],
+["Galenstock",3586,46.583,8.367,"UR/VS","Alpes Urneses",""],
+["Sustenhorn",3503,46.733,8.433,"UR/BE","Alpes Urneses",""],
+["Titlis",3238,46.772,8.438,"OW/BE","Engelberg","Cima más alta de Suiza central."],
+["Schilthorn",2970,46.559,7.835,"BE","Mürren","Plataforma giratoria Piz Gloria."],
+["Wildhorn",3248,46.367,7.317,"BE/VS","Alpes de Berna",""],
+["Les Diablerets",3210,46.300,7.200,"VD/VS","Prealpes vaudois","Cima más alta de Vaud."],
+["Mont Vélan",3727,45.900,7.233,"VS","Gran San Bernardo",""],
+["Mont Blanc de Cheilon",3870,46.000,7.400,"VS","Valle de Arolla",""],
+["Basodino",3272,46.417,8.467,"TI","Alpes Lepontinos","Glaciar y cascada Cascata del Toce al lado."],
+["Pilatus",2128,46.979,8.253,"LU/OW","Prealpes","Montaña de Lucerna."],
+["Rigi",1798,47.057,8.485,"SZ/LU","Prealpes","La reina de las montañas."],
+["Säntis",2502,47.249,9.343,"AR/AI/SG","Alpstein","Torre de telecomunicaciones y vista a seis países."],
+["Chasseral",1606,47.133,7.067,"BE/NE","Jura","Cresta del Jura bernés."],
+["Napf",1406,47.000,7.900,"BE/LU","Emmental","Mirador entre Berna y Lucerna."]
+].map(a=>({n:a[0],h:a[1],lat:a[2],lon:a[3],c:a[4],r:a[5],t:a[6],k:a[1]>=4000,g:/GR/.test(a[4])}));
+
+const CH=[[47.59,7.59],[47.57,7.80],[47.60,8.0],[47.61,8.25],[47.65,8.45],[47.70,8.60],[47.78,8.72],[47.70,8.88],[47.67,9.18],[47.55,9.55],[47.27,9.52],[47.05,9.50],[46.95,9.62],[46.88,9.88],[46.87,10.12],[46.97,10.47],[46.85,10.48],[46.62,10.45],[46.55,10.15],[46.43,10.05],[46.23,10.12],[46.30,9.95],[46.35,9.65],[46.20,9.30],[46.13,9.07],[45.83,9.03],[45.90,8.95],[46.00,8.85],[46.10,8.70],[46.15,8.60],[46.30,8.45],[46.46,8.35],[46.25,8.03],[45.97,7.97],[45.93,7.87],[45.94,7.70],[45.98,7.66],[45.97,7.50],[45.87,7.17],[45.92,7.05],[45.97,6.95],[46.20,6.78],[46.39,6.80],[46.30,6.55],[46.30,6.20],[46.15,6.10],[46.13,5.96],[46.30,6.10],[46.45,6.15],[46.62,6.23],[46.75,6.45],[46.90,6.48],[47.0,6.75],[47.15,6.95],[47.35,7.05],[47.50,7.00],[47.55,7.40]];
+const GR=[[46.62,8.80],[46.80,8.95],[46.90,9.25],[47.00,9.45],[47.06,9.52],[46.95,9.62],[46.88,9.88],[46.87,10.12],[46.97,10.47],[46.85,10.48],[46.62,10.45],[46.55,10.15],[46.43,10.05],[46.23,10.12],[46.30,9.95],[46.35,9.65],[46.20,9.30],[46.25,9.15],[46.40,9.0],[46.50,8.9]];
+
+const S=282, X0=5.9, Y0=47.85, KX=Math.cos(46.8*Math.PI/180);
+const px=p=>(p.lon-X0)*KX*S+10, py=p=>(Y0-p.lat)*S+10;
+const poly=a=>a.map(([la,lo])=>((lo-X0)*KX*S+10).toFixed(1)+","+((Y0-la)*S+10).toFixed(1)).join(" ");
+
+const st={v:"map",f:"all",q:"",sel:D.find(p=>p.n==="Matterhorn")};
+const $=s=>document.querySelector(s), view=$("#view"), tip=$("#tip");
+const col=p=>p.g?"var(--pgr)":p.k?"var(--p4k)":"var(--pother)";
+const fmt=n=>n.toLocaleString("de-CH").replace(/’/g,"’");
+const vis=()=>D.filter(p=>(st.f==="all"||(st.f==="4k"&&p.k)||(st.f==="gr"&&p.g)||(st.f==="other"&&!p.k))&&p.n.toLowerCase().includes(st.q)).sort((a,b)=>b.h-a.h);
+
+function tri(p,x,y,w,h){return `<polygon points="${x-w/2},${y} ${x},${y-h} ${x+w/2},${y}" fill="${col(p)}" fill-opacity="${p===st.sel?1:.78}" stroke="${p===st.sel?'var(--sel)':'var(--panel)'}" stroke-width="${p===st.sel?2:.8}"/>`}
+function peakG(p,inner){return `<g class="peak" data-n="${p.n}" tabindex="0" role="button" aria-label="${p.n} ${p.h} m">${inner}</g>`}
+
+function drawMap(l){
+  let s=`<svg viewBox="0 0 910 600" role="img" aria-label="Mapa esquemático de Suiza con sus montañas"><rect width="910" height="600" fill="none"/>
+  <polygon points="${poly(CH)}" fill="var(--land)" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round"/>
+  <polygon points="${poly(GR)}" fill="var(--gr)" stroke="var(--pgr)" stroke-opacity=".6" stroke-width="1" stroke-linejoin="round"/>
+  <text x="${px({lon:9.75})}" y="${py({lat:46.74})}" class="mut" font-size="13" letter-spacing="3" text-anchor="middle" opacity=".8">GRAUBÜNDEN</text>`;
+  const maxL=l.length>28?4300:l.length>45?9e9:0;
+  for(const p of l.slice().reverse()){
+    const w=7+(p.h-1300)/150, h=w*1.15, x=px(p), y=py(p)+h/2;
+    const lab=(p===st.sel||p.h>=maxL||l.length<=28||p.n==="Piz Bernina");
+    s+=peakG(p,tri(p,x,y,w,h)+(lab?`<text class="lbl" x="${x}" y="${y+12}" text-anchor="middle" paint-order="stroke" stroke="var(--land)" stroke-width="3">${p.n}</text>`:""));
+  }
+  view.innerHTML=s+"</svg>";
+}
+
+function drawSky(l){
+  const W=1000,H=420,b=H-34,t=24,lo=1000,hi=4800,ys=h=>b-(h-lo)/(hi-lo)*(b-t);
+  const pts=l.slice().sort((a,b)=>a.lon-b.lon), lonMin=5.9,lonMax=10.6, xs=p=>40+(p.lon-lonMin)/(lonMax-lonMin)*(W-60);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Panorama de cimas ordenadas de oeste a este">`;
+  for(let h=1000;h<=4500;h+=500)s+=`<line x1="40" x2="${W-14}" y1="${ys(h)}" y2="${ys(h)}" stroke="var(--line)" ${h===4000?'stroke-dasharray="5 4" stroke="var(--p4k)"':''}/><text class="lbl mut" x="34" y="${ys(h)+4}" text-anchor="end">${h}</text>`;
+  s+=`<text class="lbl mut" x="${W-14}" y="${ys(4000)-5}" text-anchor="end">4000 m</text>`;
+  for(const lon of [6,7,8,9,10])s+=`<text class="lbl mut" x="${xs({lon})}" y="${H-12}" text-anchor="middle">${lon}° E</text>`;
+  s+=`<text class="lbl mut" x="40" y="14">Eje vertical desde 1000 m</text>`;
+  let lastX=-99;
+  for(const p of l.slice().sort((a,b)=>a.h-b.h)){
+    const x=xs(p),y=ys(p.h),w=14+(p.h-1000)/70;
+    s+=peakG(p,`<polygon points="${x-w/2},${b} ${x},${y} ${x+w/2},${b}" fill="${col(p)}" fill-opacity="${p===st.sel?.95:.5}" stroke="${p===st.sel?'var(--sel)':col(p)}" stroke-width="${p===st.sel?2:.6}"/>`);
+  }
+  for(const p of pts){const x=xs(p);if(p.h>=3900&&x-lastX>38||p===st.sel){s+=`<text class="lbl" transform="translate(${x},${ys(p.h)-6}) rotate(-60)">${p.n}</text>`;lastX=x}}
+  view.innerHTML=s+`<line x1="40" x2="${W-14}" y1="${b}" y2="${b}" stroke="var(--muted)"/></svg>`;
+}
+
+function drawRank(l){
+  view.innerHTML=`<div class="rank">`+l.map(p=>`<div class="row${p===st.sel?" on":""}" data-n="${p.n}" tabindex="0" role="button"><span>${p.n}</span><span class="track"><div class="fill" style="width:${p.h/4700*100}%;background:${col(p)}"></div>${p.h>4000?`<i style="position:absolute;left:${4000/4700*100}%;top:-2px;bottom:-2px;border-left:1px dashed var(--muted)"></i>`:`<i style="position:absolute;left:${4000/4700*100}%;top:-2px;bottom:-2px;border-left:1px dashed var(--muted)"></i>`}</span><span>${fmt(p.h)}</span></div>`).join("")+`</div>`;
+}
+
+function card(){
+  const p=st.sel; if(!p){$("#card").innerHTML="<p>Elige una cima.</p>";return}
+  const rk=D.slice().sort((a,b)=>b.h-a.h).indexOf(p)+1;
+  $("#card").innerHTML=`<div class="tags">${p.k?'<span class="tag k">CUATROMIL</span>':''}${p.g?'<span class="tag g">GRAUBÜNDEN</span>':''}<span class="tag">${p.c}</span></div>
+  <h2>${p.n}</h2><div class="big">${fmt(p.h)} <small>m</small></div>
+  <p>${p.t||""}</p>
+  <div class="stats"><span>Macizo <b>${p.r}</b></span><span>Puesto <b>${rk}/${D.length}</b></span></div>
+  <div class="stats"><span>${p.lat.toFixed(3)}° N, ${p.lon.toFixed(3)}° E</span></div>
+  ${p.k?`<p>${p.h-4000} m por encima de los 4000.</p>`:`<p>${4000-p.h} m por debajo de los 4000.</p>`}`;
+}
+
+function render(){
+  const l=vis();
+  $("#stats").innerHTML=`<span>Mostrando <b>${l.length}</b> cimas</span><span>Cuatromiles <b>${l.filter(p=>p.k).length}</b></span><span>Graubünden <b>${l.filter(p=>p.g).length}</b></span>`;
+  if(!l.length){view.innerHTML='<p style="padding:24px;color:var(--muted)">Ninguna cima coincide. Cambia el filtro o la búsqueda.</p>'}
+  else (st.v==="map"?drawMap:st.v==="sky"?drawSky:drawRank)(l);
+  card();
+}
+function pick(n){st.sel=D.find(p=>p.n===n);render()}
+view.addEventListener("click",e=>{const g=e.target.closest("[data-n]");if(g)pick(g.dataset.n)});
+view.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){const g=e.target.closest("[data-n]");if(g){e.preventDefault();pick(g.dataset.n);const sel=view.querySelector(`[data-n="${CSS.escape(g.dataset.n)}"]`);sel&&sel.focus()}}});
+view.addEventListener("mousemove",e=>{const g=e.target.closest(".peak");if(!g){tip.style.display="none";return}
+  const p=D.find(x=>x.n===g.dataset.n),r=$("#stage").getBoundingClientRect();
+  tip.textContent=`${p.n} · ${fmt(p.h)} m`;tip.style.display="block";tip.style.left=Math.min(e.clientX-r.left+12,r.width-170)+"px";tip.style.top=(e.clientY-r.top+14)+"px"});
+view.addEventListener("mouseleave",()=>tip.style.display="none");
+$("#views").addEventListener("click",e=>{const b=e.target.closest(".tab");if(!b)return;st.v=b.dataset.v;document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t===b));render()});
+$("#filters").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;st.f=b.dataset.f;document.querySelectorAll(".chip").forEach(t=>t.setAttribute("aria-pressed",t===b));render()});
+$("#q").addEventListener("input",e=>{st.q=e.target.value.trim().toLowerCase();render()});
+render();
+</script>
